@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>UPI Payment – Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --card-bg: rgba(255,255,255,0.08);
+      --card-border: rgba(255,255,255,0.18);
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --brand: #6366f1;
+      --danger: #ef4444;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --gray: #94a3b8;
+    }
+    *{ box-sizing: border-box }
+    html,body{ height:100% }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background: linear-gradient(-45deg,#0f172a,#1e293b,#0b132b,#1b2a41);
+      background-size:300% 300%;
+      animation:bgShift 18s ease infinite;
+      display:grid;
+      place-items:center;
+      padding: clamp(12px, 4vw, 40px);
+      row-gap: 10px;
+    }
+    @keyframes bgShift{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    .card{
+      width:100%; max-width: clamp(340px, 92vw, 880px);
+      background:var(--card-bg); border:1px solid var(--card-border);
+      border-radius: 20px; padding: clamp(16px, 3vw, 28px);
+      backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,.25);
+    }
+    h1{ margin:0 0 6px; font-size: clamp(22px, 3.4vw, 32px); font-weight:800; }
+    p.sub{ margin:0 0 clamp(14px, 2.4vw, 20px); color:var(--muted); font-size: clamp(13px, 1.6vw, 16px); }
+
+    .qrWrap{ display:grid; justify-items:center; gap: clamp(8px, 1.6vw, 12px); }
+    .qr, .animBox{
+      width: clamp(180px, 48vw, 320px); height: clamp(180px, 48vw, 320px);
+      border-radius: 16px; overflow: hidden; background: rgba(255,255,255,.06);
+      border: 1px solid var(--card-border); display: grid; place-items: center;
+    }
+    .qr img{ width:100%; height:100%; object-fit:contain; display:block }
+
+    .btn{
+      border:none; border-radius:12px;
+      padding: clamp(12px,2.5vw,14px) clamp(16px,3vw,18px);
+      background: linear-gradient(135deg, var(--brand), #7c3aed);
+      color:white; font-weight:700; cursor:pointer;
+      transition: transform .08s, box-shadow .2s, opacity .2s;
+      box-shadow: 0 10px 20px rgba(99,102,241,.25);
+      font-size: clamp(14px, 2.4vw, 16px);
+    }
+    .btn.secondary{ background: rgba(255,255,255,.08); box-shadow:none; border:1px solid var(--card-border); }
+    .btn:active{ transform: translateY(1px) }
+    .btn[disabled]{ opacity:.6; cursor:not-allowed }
+
+    .info{ display:grid; gap:6px; justify-items:center; margin-top:2px; margin-bottom:4px; text-align:center; font-size:clamp(13px,1.8vw,15px); }
+    .amount { font-weight: 800; color: var(--text); }
+    .status { font-weight: 700; color: var(--text); }
+    .status-value{ margin-left: 4px; }
+    .status-value.checking { color: var(--muted); }   /* NEW: “Checking” look */
+    .status-value.pending  { color: var(--yellow); }
+    .status-value.success  { color: var(--green); }
+    .status-value.failed   { color: var(--danger); }
+    .status-value.timeup,
+    .status-value.cancelled{ color: var(--gray); }
+
+    .pills{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top: 4px; }
+    .pill{
+      color:var(--muted); font-size: clamp(12px, 1.8vw, 14px);
+      background: rgba(255,255,255,.06); border: 1px solid var(--card-border);
+      padding: 6px 12px; border-radius: 999px; line-height:1; display:inline-flex; align-items:center; gap:8px;
+    }
+    .pill.danger{ color:#fff; background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.35); cursor:pointer; user-select:none; }
+    .pill.danger:active{ transform: translateY(1px) }
+
+    .hidden{ display:none !important; }
+    dotlottie-player{ width:100%; height:100%; }
+
+    .close-banner{
+      max-width: clamp(340px, 92vw, 880px);
+      width: 100%;
+      text-align:center;
+      font-weight:800;
+      color:#fff;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      padding: 10px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    }
+  </style>
+  <script type="module" src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs"></script>
+</head>
+<body>
+  <div class="card">
+    <h1>Dynamic UPI Payment</h1>
+    <p id="subtitle" class="sub">Preparing your payment session…</p>
+
+    <div id="payArea">
+      <div class="qrWrap">
+        <div id="loadingHolder" class="animBox"></div>
+
+        <div id="qrHolder" class="qr hidden">
+          <img id="qr" alt="UPI QR" />
+        </div>
+
+        <div id="animHolder" class="animBox hidden"></div>
+
+        <button id="downloadQrBtn" class="btn secondary hidden">Download QR Code</button>
+
+        <div class="info">
+          <!-- DEFAULTS for “checking” -->
+          <div id="amountInfo" class="amount">Amount: -</div>
+          <div class="status">Status: <span id="statusValue" class="status-value checking">Checking</span></div>
+        </div>
+
+        <div id="pillsRow" class="pills hidden">
+          <span class="pill">Pay within: <span id="timeLeft" style="margin-left:6px">10:00</span></span>
+          <span id="cancelBtn" class="pill danger">Cancel</span>
+        </div>
+
+        <button id="downloadBtn" class="btn hidden">Download Invoice</button>
+      </div>
+    </div>
+
+    <audio id="successSound" src="/success.mp3" preload="auto"></audio>
+    <audio id="failedSound"  src="/failed.mp3"  preload="auto"></audio>
+  </div>
+
+  <div id="closeBanner" class="close-banner hidden"></div>
+
+  <script type="module">
+    const subtitleEl   = document.getElementById('subtitle');
+    const loadingHolder= document.getElementById('loadingHolder');
+    const qrImg        = document.getElementById('qr');
+    const qrHolder     = document.getElementById('qrHolder');
+    const animHolder   = document.getElementById('animHolder');
+    const amountInfo   = document.getElementById('amountInfo');
+    const statusValue  = document.getElementById('statusValue');
+    const pillsRow     = document.getElementById('pillsRow');
+    const timeLeftEl   = document.getElementById('timeLeft');
+    const cancelBtn    = document.getElementById('cancelBtn');
+    const downloadBtn  = document.getElementById('downloadBtn');
+    const downloadQrBtn= document.getElementById('downloadQrBtn');
+    const successSound = document.getElementById('successSound');
+    const failedSound  = document.getElementById('failedSound');
+    const closeBanner  = document.getElementById('closeBanner');
+
+    const comment = decodeURIComponent(location.pathname.replace(/^\//,''));
+    let redirectUrl = '/';
+
+    // fetch redirect URL from server
+    try {
+      const cfg = await fetch('/api/config').then(r=>r.json());
+      if (cfg?.redirectUrl) redirectUrl = cfg.redirectUrl;
+    } catch {}
+
+    // if comment missing/invalid → redirect immediately
+    if (!comment || !/^[A-Za-z0-9_-]{3,}$/.test(comment)) {
+      location.replace(redirectUrl);
+      throw new Error("Invalid or missing comment");
+    }
+
+    let expiresAt = 0, pollEvery = 5, timerId = null, uiTickId = null, animLoopTimeout = null, lastDetails = null;
+    const LOOP_DELAY_MS = 1000;
+
+    function fmtMMSS(ms){
+      const s = Math.max(0, Math.floor(ms/1000));
+      const mm = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s%60).padStart(2,'0');
+      return `${mm}:${ss}`;
+    }
+    function setStatus(status){
+      statusValue.className = 'status-value';
+      const map = { CHECKING:'checking', PENDING:'pending', SUCCESS:'success', FAILED:'failed', TIMEUP:'timeup', CANCELLED:'cancelled' };
+      statusValue.classList.add(map[status] || 'checking');
+      statusValue.textContent = {
+        CHECKING:'Checking', PENDING:'Pending', SUCCESS:'Success',
+        FAILED:'Failed', TIMEUP:'Time up', CANCELLED:'Cancelled'
+      }[status] || 'Checking';
+    }
+    function showLoading(){
+      loadingHolder.classList.remove('hidden');
+      loadingHolder.innerHTML = `<dotlottie-player src="/loading.lottie" autoplay loop></dotlottie-player>`;
+    }
+    function hideLoading(){ loadingHolder.classList.add('hidden'); loadingHolder.innerHTML = ""; }
+
+    function showQR(){
+      animHolder.classList.add('hidden');
+      animHolder.innerHTML = "";
+      qrHolder.classList.remove('hidden');
+      downloadQrBtn.classList.remove('hidden');
+      pillsRow.classList.remove('hidden');
+    }
+    function hideQR(){
+      qrHolder.classList.add('hidden');
+      downloadQrBtn.classList.add('hidden');
+      pillsRow.classList.add('hidden');   // hide countdown/cancel whenever QR is hidden
+    }
+
+    function clearAnimLoop(){ if (animLoopTimeout) { clearTimeout(animLoopTimeout); animLoopTimeout = null; } }
+    function stopAllTimers(){ if (timerId) clearInterval(timerId); if (uiTickId) cancelAnimationFrame(uiTickId); clearAnimLoop(); }
+    function startAutoClose(reasonText){
+      stopAllTimers();
+      let left = 15;
+      closeBanner.classList.remove('hidden');
+      const tick = ()=>{
+        closeBanner.textContent = `${reasonText} — this tab will close automatically in ${left} seconds.`;
+        if (--left < 0) { try { window.close(); } catch {} return; }
+        setTimeout(tick, 1000);
+      };
+      tick();
+    }
+    function showResult(kind){
+      hideQR();
+      animHolder.classList.remove('hidden');
+      animHolder.innerHTML = `<dotlottie-player src="${kind==='success'?'/success.lottie':'/failed.lottie'}" autoplay></dotlottie-player>`;
+      const snd = kind==='success'?successSound:failedSound; snd.currentTime=0; snd.play().catch(()=>{});
+      const player = animHolder.querySelector('dotlottie-player');
+      const scheduleLoop = () => { clearAnimLoop(); animLoopTimeout = setTimeout(()=>{ try{ player.seek(0); player.play(); }catch{} }, LOOP_DELAY_MS); };
+      player.addEventListener('complete', scheduleLoop); player.addEventListener('ended', scheduleLoop);
+      subtitleEl.textContent = kind==='success' ? "Payment successful." : "Payment failed (amount mismatch).";
+      setStatus(kind==='success'?'SUCCESS':'FAILED');
+      if(kind==='success') downloadBtn.classList.remove('hidden'); else downloadBtn.classList.add('hidden');
+      startAutoClose(kind==='success' ? "Payment Success" : "Payment Failed");
+    }
+    function downloadInvoice(){
+      if (!lastDetails || !lastDetails.utr) { alert("Invoice details not available yet."); return; }
+      const d = lastDetails;
+      const date = new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata', day:'2-digit', month:'long', year:'numeric'}).format(d.timestamp);
+      const time = new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata', hour:'numeric', minute:'2-digit', hour12:true}).format(d.timestamp).replace(' ','') + ' IN IST';
+      const txt = `
+            MAGICAL DEVELOPERS                  
+<------------------------------------------------->
+             PAYMENT INVOICE                     
+                                              
+ PAYER NAME: ${d.payerName||"UNKNOWN"}
+ UPI ID: ${d.payerVpa||"UNKNOWN"}
+ AMOUNT: ${d.amount??"UNKNOWN"}
+ ORDER ID: ${d.utr||"UNKNOWN"}
+ DATE: ${date}
+ TIME: ${time}
+<------------------------------------------------->
+                THANK YOU                      
+<------------------------------------------------->`.replace(/\n$/,'');
+      const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `Invoice-${d.utr}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+    function downloadQr(){ if (!qrImg?.src) return; const a=document.createElement('a'); a.href=qrImg.src; a.download=`upi-qr-${Date.now()}.png`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+    async function cancelPayment(){
+      try{
+        stopAllTimers();
+        await fetch(`/api/cancel/${encodeURIComponent(comment)}`, { method:"POST" });
+        subtitleEl.textContent = "Payment cancelled.";
+        timeLeftEl.textContent = "00:00";
+        hideQR();
+        setStatus('CANCELLED');
+        startAutoClose("Payment cancelled");
+      }catch{
+        subtitleEl.textContent = "Payment cancelled.";
+        hideQR();
+        setStatus('CANCELLED');
+        startAutoClose("Payment cancelled");
+      }
+    }
+
+    async function begin(){
+      // “Checking” state visuals
+      amountInfo.textContent = "Amount: -";
+      setStatus('CHECKING');
+      showLoading();
+      subtitleEl.textContent = "Checking session…";
+
+      const resp = await fetch(`/api/session?comment=${encodeURIComponent(comment)}`, { method:"POST" });
+
+      // Redirect on problems
+      if (resp.status === 400 || resp.status === 401 || resp.status === 404) {
+        location.replace(redirectUrl);
+        return;
+      }
+      if (!resp.ok) {
+        location.replace(redirectUrl);
+        return;
+      }
+
+      const data = await resp.json();
+      expiresAt = data.expiresAt; const amount = data.amount; const pollEvery = data.pollEverySeconds || 5;
+
+      // Switch to real values
+      amountInfo.textContent = `Amount: ₹${amount}`;
+      setStatus('PENDING');
+
+      qrImg.src = data.qrDataUrl;
+      hideLoading(); showQR();
+      subtitleEl.textContent = "Scan below QR code for payment using UPI Payment Apps.";
+
+      async function poll(){
+        const res = await fetch(`/api/status/${encodeURIComponent(comment)}`);
+        if (!res.ok) {
+          stopAllTimers(); subtitleEl.textContent="Time up."; setStatus('TIMEUP'); hideQR(); startAutoClose("Time up"); return;
+        }
+        const j = await res.json();
+        if (j.details) lastDetails = j.details;
+
+        if (j.status === "SUCCESS") { stopAllTimers(); showResult('success'); }
+        else if (j.status === "FAILED") { stopAllTimers(); showResult('failed'); }
+        else if (j.status === "TIMEUP" || j.status === "CANCELLED") {
+          stopAllTimers();
+          subtitleEl.textContent = j.status==="TIMEUP" ? "Time up." : "Payment cancelled.";
+          setStatus(j.status); hideQR(); startAutoClose(j.status==="TIMEUP" ? "Time up" : "Payment cancelled");
+        } else { setStatus('PENDING'); }
+      }
+      function uiTick(){
+        const now = Date.now();
+        const remain = Math.max(0, expiresAt - now);
+        timeLeftEl.textContent = fmtMMSS(remain);
+        if (remain <= 0) {
+          stopAllTimers(); subtitleEl.textContent="Time up."; setStatus('TIMEUP'); hideQR(); startAutoClose("Time up");
+        } else { uiTickId = requestAnimationFrame(uiTick); }
+      }
+      await poll();
+      timerId = setInterval(poll, (pollEvery || 5) * 1000);
+      uiTick();
+    }
+
+    cancelBtn.addEventListener('click', cancelPayment);
+    downloadBtn.addEventListener('click', downloadInvoice);
+    downloadQrBtn.addEventListener('click', downloadQr);
+
+    begin().catch(()=>{ location.replace(redirectUrl); });
+  </script>
+</body>
+</html>
