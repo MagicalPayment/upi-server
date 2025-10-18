@@ -25,7 +25,7 @@ const PORT = Number(process.env.port || 3000);
 const DEFAULT_UPI = process.env.UPI || "magicals@slc";
 const DEFAULT_NAME = process.env.Name || "Magical Developer";
 const FETCH_PER_SECONDS = Math.max(1, Number(process.env.FETCH_PER_SECONDS || 5));
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3001";
+const CLIENT_URL = process.env.CLIENT_URL || "https://gradz.in";
 const REDIRECT_URL = process.env.REDIRECT_URL || "/";
 
 // ---- Freecharge endpoints / cookies ----
